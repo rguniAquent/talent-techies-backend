@@ -29,18 +29,21 @@ router.post('/api/benefits-answers', async (req, res) => {
     temperature: 0.2,
     top_p: 1,
     frequency_penalty: 0,
-    presence_penalty: 0
+    presence_penalty: 0,
+    logprobs: 10
   }
 
   const response = await openai.createCompletion(options);
   var answer = response.data.choices[0].text;
+  const confidence = response.data.choices[0].logprobs.token_logprobs[0];
 
   if(answer.indexOf('\n')) {
     answer = answer.slice(0, answer.indexOf('\n'));
   }
 
-  if((checkSimilarity(question, answer)) > 0.4){
-    res.send(answer);
+  if((checkSimilarity(question, answer)) > 0.2 && confidence > -1){
+    const summarizedAnswer = await summarizeAnswer(answer)
+    res.send(summarizedAnswer);
   } 
   else {
     res.send(genericResponse);
@@ -83,6 +86,19 @@ function filterGeneralQuestions(question) {
   }
   // if no match is found, return a empty string
   return "";
+}
+
+async function summarizeAnswer(answer) {
+  const options = {
+    model: 'text-davinci-003',
+    prompt: `Summarize the following text: "${answer}"`,
+    max_tokens: 256,
+    temperature: 0.5,
+    top_p: 1,
+  }
+
+  const summary = await openai.createCompletion(options);
+  return summary.data.choices[0].text.replace(/^\s+|\s+$/g, '');
 }
 
 module.exports = router;
