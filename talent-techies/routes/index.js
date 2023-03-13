@@ -1,5 +1,6 @@
 var express = require('express');
 const similarity = require('cosine-similarity');
+const generalQuestions = require('../generalQuestions.json');
 const { Configuration, OpenAIApi } = require('openai');
 require('dotenv').config();
 const configuration = new Configuration({
@@ -11,7 +12,13 @@ var router = express.Router();
 
 
 router.post('/api/benefits-answers', async (req, res) => {
+
   const question = req.body.question;
+
+  if(filterGeneralQuestions(question).length != 0) {
+    res.send(filterGeneralQuestions(question));
+    return;
+  }
 
   const genericResponse = 'That is a great question, unfortunately we don\'t have any data to answer that..'
 
@@ -19,7 +26,7 @@ router.post('/api/benefits-answers', async (req, res) => {
     model: process.env.MODEL,
     prompt: question,
     max_tokens: 256,
-    temperature: 0.1,
+    temperature: 0.2,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0
@@ -60,6 +67,22 @@ function checkSimilarity(question, answer) {
   const cosineSimilarity = similarity(Object.values(inputVector), Object.values(generatedVector));
 
   return cosineSimilarity;
+}
+
+function filterGeneralQuestions(question) {
+  // loop through each key in the JSON object
+  for (let key in generalQuestions) {
+    // loop through each question and answer in the array for the current key
+    for (let i = 0; i < generalQuestions[key].length; i++) {
+      // check if the input matches the current question
+      if (question.toLowerCase() === generalQuestions[key][i].question.toLowerCase()) {
+        // return the corresponding answer
+        return generalQuestions[key][i].answer;
+      }
+    }
+  }
+  // if no match is found, return a empty string
+  return "";
 }
 
 module.exports = router;

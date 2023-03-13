@@ -1,0 +1,34 @@
+{
+    "greeting": [
+      {
+        "question": "Hi",
+        "answer": "Hello! How can I assist you today?"
+      },
+      {
+        "question": "Hello",
+        "answer": "Hi there! How can I help you?"
+      },
+      {
+        "question": "Hey",
+        "answer": "Hey! What can I do for you today?"
+      },
+      {
+        "question": "How are you?",
+        "answer": "I'm doing well, thank you. How can I assist you today?"
+      }
+    ],
+    "farewell": [
+      {
+        "question": "Goodbye",
+        "answer": "Goodbye! Have a great day!"
+      },
+      {
+        "question": "See you later",
+        "answer": "See you later! Take care."
+      },
+      {
+        "question": "Bye",
+        "answer": "Bye! Come back soon."
+      }
+    ]
+}
