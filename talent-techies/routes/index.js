@@ -1,59 +1,85 @@
-var express = require('express');
-const similarity = require('cosine-similarity');
-const generalQuestions = require('../generalQuestions.json');
-const { Configuration, OpenAIApi } = require('openai');
-require('dotenv').config();
+var express = require("express");
+const similarity = require("cosine-similarity");
+const generalQuestions = require("../generalQuestions.json");
+const { Configuration, OpenAIApi } = require("openai");
+require("dotenv").config();
 const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY
-})
+  apiKey: process.env.OPENAI_API_KEY,
+});
 const openai = new OpenAIApi(configuration);
 
 var router = express.Router();
 
-
-router.post('/api/benefits-answers', async (req, res) => {
-
+router.post("/api/benefits-answers", async (req, res) => {
   const question = req.body.question;
+  const context =
+    "You are a helpful assistant for Aquent that answers questions strictly about employee benefits offered by Aquent and nothing else. Aquent is a workforce solutions company.";
+  const discriminatorPrompt = `${context}\nQuestion: ${question}\nRelated:`;
+  const questionAndAnswerPrompt = `${context}\nQuestion: ${question}\nAnswer:`;
 
-  if(filterGeneralQuestions(question).length != 0) {
+  if (filterGeneralQuestions(question).length != 0) {
     res.send(filterGeneralQuestions(question));
     return;
   }
 
-  const genericResponse = 'That is a great question, unfortunately we don\'t have any data to answer that..'
+  const genericResponse =
+    "That is a great question, unfortunately we don't have any data to answer that..";
 
-  const options = {
-    model: process.env.MODEL,
-    prompt: question,
-    max_tokens: 256,
-    temperature: 0.2,
+  const discriminatorBotOptions = {
+    model: process.env.DISCRIMINATOR_MODEL,
+    prompt: discriminatorPrompt,
+    max_tokens: 1,
+    temperature: 0,
     top_p: 1,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-    logprobs: 10
+    n: 1,
+    logprobs: 2,
+  };
+
+  const discriminatorResponse = await openai.createCompletion(
+    discriminatorBotOptions
+  );
+
+  discriminatorProbs =
+    discriminatorResponse.data.choices[0].logprobs.top_logprobs[0];
+
+  yesProb = discriminatorProbs.hasOwnProperty(" yes")
+    ? discriminatorProbs[" yes"]
+    : -100;
+  noProb = discriminatorProbs.hasOwnProperty(" no")
+    ? discriminatorProbs[" no"]
+    : -100;
+
+  if (yesProb > noProb) {
+    const questionAndAnswerBotOptions = {
+      model: process.env.QUESTION_AND_ANSWER_MODEL,
+      prompt: questionAndAnswerPrompt,
+      max_tokens: 256,
+      temperature: 0.2,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      logprobs: 10,
+    };
+
+    const questionAndAnswerResponse = await openai.createCompletion(
+      questionAndAnswerBotOptions
+    );
+
+    var answer = questionAndAnswerResponse.data.choices[0].text;
+
+    if (answer.indexOf("\n")) {
+      answer = answer.slice(0, answer.indexOf("\n"));
+    }
+    const summarizedAnswer = await summarizeAnswer(answer);
+    res.status(200).send(summarizedAnswer);
+  } else {
+    res.status(200).send(genericResponse);
   }
-
-  const response = await openai.createCompletion(options);
-  var answer = response.data.choices[0].text;
-  const confidence = response.data.choices[0].logprobs.token_logprobs[0];
-
-  if(answer.indexOf('\n')) {
-    answer = answer.slice(0, answer.indexOf('\n'));
-  }
-
-  if((checkSimilarity(question, answer)) > 0.2 && confidence > -1){
-    const summarizedAnswer = await summarizeAnswer(answer)
-    res.send(summarizedAnswer);
-  } 
-  else {
-    res.send(genericResponse);
-  }
-
 });
 
 function checkSimilarity(question, answer) {
-  const inputTokens = question.split(' ');
-  const generatedTokens = answer.split(' ');
+  const inputTokens = question.split(" ");
+  const generatedTokens = answer.split(" ");
 
   //create a vector of the input question and generated response using the word frequencies
   const inputVector = inputTokens.reduce((vector, word) => {
@@ -67,7 +93,10 @@ function checkSimilarity(question, answer) {
   }, {});
 
   // calculate the cosine similarity between the input question and generated response
-  const cosineSimilarity = similarity(Object.values(inputVector), Object.values(generatedVector));
+  const cosineSimilarity = similarity(
+    Object.values(inputVector),
+    Object.values(generatedVector)
+  );
 
   return cosineSimilarity;
 }
@@ -78,7 +107,10 @@ function filterGeneralQuestions(question) {
     // loop through each question and answer in the array for the current key
     for (let i = 0; i < generalQuestions[key].length; i++) {
       // check if the input matches the current question
-      if (question.toLowerCase() === generalQuestions[key][i].question.toLowerCase()) {
+      if (
+        question.toLowerCase() ===
+        generalQuestions[key][i].question.toLowerCase()
+      ) {
         // return the corresponding answer
         return generalQuestions[key][i].answer;
       }
@@ -90,15 +122,15 @@ function filterGeneralQuestions(question) {
 
 async function summarizeAnswer(answer) {
   const options = {
-    model: 'text-davinci-003',
+    model: "text-davinci-003",
     prompt: `Summarize the following text: "${answer}"`,
     max_tokens: 256,
     temperature: 0.5,
     top_p: 1,
-  }
+  };
 
   const summary = await openai.createCompletion(options);
-  return summary.data.choices[0].text.replace(/^\s+|\s+$/g, '');
+  return summary.data.choices[0].text.replace(/^\s+|\s+$/g, "");
 }
 
 module.exports = router;
