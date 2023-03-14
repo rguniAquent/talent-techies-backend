@@ -39,13 +39,13 @@ router.post("/api/benefits-answers", async (req, res) => {
     discriminatorBotOptions
   );
 
-  discriminatorProbs =
+  const discriminatorProbs =
     discriminatorResponse.data.choices[0].logprobs.top_logprobs[0];
 
-  yesProb = discriminatorProbs.hasOwnProperty(" yes")
+  const yesProb = discriminatorProbs.hasOwnProperty(" yes")
     ? discriminatorProbs[" yes"]
     : -100;
-  noProb = discriminatorProbs.hasOwnProperty(" no")
+  const noProb = discriminatorProbs.hasOwnProperty(" no")
     ? discriminatorProbs[" no"]
     : -100;
 
@@ -70,8 +70,13 @@ router.post("/api/benefits-answers", async (req, res) => {
     if (answer.indexOf("\n")) {
       answer = answer.slice(0, answer.indexOf("\n"));
     }
-    const summarizedAnswer = await summarizeAnswer(answer);
-    res.status(200).send(summarizedAnswer);
+    const summarizedAnswer = await summarizeAnswer(question, answer);
+    if(checkSimilarity(question, answer) > 0.2) {
+      res.status(200).send(summarizedAnswer);
+    }
+    else {
+      res.status(200).send(genericResponse);
+    }
   } else {
     res.status(200).send(genericResponse);
   }
@@ -120,10 +125,10 @@ function filterGeneralQuestions(question) {
   return "";
 }
 
-async function summarizeAnswer(answer) {
+async function summarizeAnswer(question, answer) {
   const options = {
     model: "text-davinci-003",
-    prompt: `Summarize the following text: "${answer}"`,
+    prompt: `I have this question:${question}.\nSummarize the following text according to the context of the question: "${answer}"`,
     max_tokens: 256,
     temperature: 0.5,
     top_p: 1,
